@@ -1,20 +1,31 @@
+---
+marp: true
+---
+
 #    Sharing data between threads
   
-First note that if the data shared between threads is never modified then we don't have a problem at all. The problems start to occur when one or more threads modifies the shared data.
+1. First note that if the data shared between threads is never modified then we don't have a problem at all.
+1.  The problems start to occur when one or more threads modifies the shared data.
   
+---
   
 ##    Motivating Example
   
-In the code below we define two functions: ```void add(int &)``` and ```void sub(int &)``` that increment/decrement the passed parameter by 1.
-We create 4 threads: 2 that increment/decrement a variable ```x``` and the other 2 do the same for ```y```.
-Since, for each variable, the number of increments is the same as decrements, we expect that, if we initialize to 0, that the final result is also 0. As you can see by running the code this is not the case. __Note__ the large number of iterations we are doing in ```add``` and ```sub```. If we did a single operations we won't catch the problem 
-because in that case the calling thread would finish execution before the system switches to another thread.
+1. In the code below we define two functions: ```void add(int &)``` and ```void sub(int &)``` that increment/decrement the passed parameter by 1.
+
+1. We create 4 threads: 2 that increment/decrement a variable ```x``` and the other 2 do the same for ```y```.
+1. Since, for each variable, the number of increments is the same as decrements, we expect that, if we initialize to 0, that the final result is also 0. 
+1. As you can see by running the code this is not the case.
+1.  __Note__ the large number of iterations we are doing in ```add``` and ```sub```. 
+1. If we did a single operations we won't catch the problem  because in that case the calling thread would finish execution before the system switches to another thread.
   
+
+---
+
+### Code 
+
 ```cpp
-#include <iostream>
-#include <thread>
-#include <vector>
-  
+
 #define NUM_ITERATIONS 100000
 #define NUM_TRIALS 6
 void add(int& val) {
@@ -47,18 +58,30 @@ int main()
     }
 }
 ```
-You can try a __modified__ version of the above with only one variable and two threads 
-but a __larger__ number of iterations [here](https://godbolt.org/z/7jjW91 ). Compiler explorer
-doesn't allow us to create more than two threads.
+
+---
+
+
+1. You can try a __modified__ version 
+1. With with only one variable and two threads  and a __larger__ number of iterations
+1.  [here](https://godbolt.org/z/7jjW91 ). 
+1. Compiler explorer doesn't allow us to create more than two threads.
   
+---
+
 ###  Analysis
   
-Consider the assembly code produced by gcc (slightly changed by me) of the ```add``` function 
-use in the previous code.  The operation ```++var;``` is basically translated into three steps
+1. Consider the assembly code produced by gcc (slightly changed by me) of the ```add``` function 
+use in the previous code.  
+1. The operation ```++var;``` is basically translated into three steps
 1. load the value of _var_ into register _edx_. We will call it ```mov var edx```.
 1. increment register _edx_. We will call it ```inc edx``` or ```dec edx``` if it is decremented.
 1. store the value in _edx_ back to _var_. We will call it ```mov edx var```;
   
+
+---
+
+### Assembly 
 ```assembly
   
 add:
@@ -91,14 +114,21 @@ main:
         leave
         ret
 ```
+---
+### Explanation 
+
+1. Now consider, say, two threads, one executing ```++var``` and the other ```--var``` with ```var``` initially,
+equal to 4.
+1. Since the two threads are independent there are many possible sequences of instructions,
+__one__ of them is shown below.
+1.  As you can see, the final value of ```var``` in this case is 3. 
+1.  Other sequences are possible, one could get 3,4, or 5 depending which thread finishes first. 
+1. What is worse, if the two threads are executing in a long loop, for every iteration we might get a different value. 1. This is called  a __race condition__ 
+1. the part of the code where the shared variable is accesseed is called __critical section__. 
+1. That is why in the previous code we got non consistent results.
   
-Now consider, say, two threads, one executing ```++var``` and the other ```--var``` with ```var``` initially,
-equal to 4. Since the two threads are independent there are many possible sequences of instructions,
-__one__ of them is shown below. As you can see, the final value of ```var``` in this case is 3. Since other 
-sequences are possible, one could get 3,4, or 5 depending which thread finishes first. What is worse, if
-the two threads are executing in a long loop, for every iteration we might get a different value. This is called  a
-__race condition__ and the part of the code where the shared variable is accesseed is called __critical section__. That is why in the previous code we got non consistent results.
-  
+---
+
 ```
 mov var edx1    # edx1=4
 mov var edx2    # edx2=4
@@ -108,10 +138,16 @@ mov edx1 var    # var=5
 mov edx2 var    # var=3
 ```
 
+---
+
 ##   std::mutex
   
-One way to synchronize access to a __critical section__ is to use ```std::mutex```. Essentially, ```std::mutex```
-behaves as a lock. We modify the previous code as follows:
+1. One way to synchronize access to a __critical section__ is to use ```std::mutex```. 
+1. Essentially, ```std::mutex``` behaves as a lock. 
+1. We modify the previous code as follows:
+
+---
+
 ```cpp
 #include <mutex>
 std::mutex m;
@@ -130,11 +166,18 @@ void sub(int& val) {
 ```
   
  You can try the complete code [here](https://godbolt.org/z/9Kab8x ) 
-  
+---
+
 ##  std::lock_guard
   
-Sometimes the above approach leads to problems since the ```std::mutex``` is not unlocked _automatically_. When the code base gets complicated, a programmer might simply forget to unlock a mutex and a deadlock occurs. More importantly, suppose that before we call ```std::mutex::unlock()``` a exception occurs. This means that the unlock statement is never reached.
-Consider the code below.
+1. Sometimes the above approach leads to problems since the ```std::mutex``` is not unlocked _automatically_. 
+1. When the code base gets complicated, a programmer might simply forget to unlock a mutex and a deadlock occurs. 
+1. More importantly, suppose that before we call ```std::mutex::unlock()``` a exception occurs. 
+1. This means that the unlock statement is never reached.
+1. Consider the code below.
+
+---
+
 ```cpp
 #include  <string>
 #include <random>
@@ -162,7 +205,11 @@ int sub(const std::vector<std::string>& values) {
     return val;
 }
   
-  
+```
+
+----
+
+```cpp
 template <typename T>
 void threadf(int& val, const T& values
     , int (*f)(const T&)) {
@@ -177,17 +224,23 @@ void threadf(int& val, const T& values
     }
 }
 ```
-The functions ```add``` and ```sub``` will be called from two different threads. Each locks mutex ```m``` before 
-performing their operations, which is to convert a set of strings to integers and add/sub them to the passed variable.
-The ```sleep_for``` is added such that ```add``` locks the mutex first, most of the time.
-The ```std::stoi``` will raise an exception if the input string cannot be converted to an integer.
 
-Below is the ```main``` function. Notice that the input to ```add``` will be the vector ```evalues``` which contains
-the character _p_ as a first value. This will cause an exception in ```add``` which will be caught in ```threadf```,
+----
+
+1. The functions ```add``` and ```sub``` will be called from two different threads. 
+1. Each locks mutex ```m``` before  performing their operations, which is to convert a set of strings to integers and add/sub them to the passed variable.
+1. The ```sleep_for``` is added such that ```add``` locks the mutex first, most of the time.
+1. The ```std::stoi``` will raise an exception if the input string cannot be converted to an integer.
+
+1. Below is the ```main``` function. 
+1. Notice that the input to ```add``` will be the vector ```evalues``` which contains
+the character _p_ as a first value. 
+1. This will cause an exception in ```add``` which will be caught in ```threadf```,
 causing ```sub``` to hang since it is waiting for the release of  a locked mutex that will not be released.
-__NOTE__ an exception raised in a thread __cannot__ be caught by the parent thread.
+1. __NOTE__ an exception raised in a thread __cannot__ be caught by the parent thread.
 
-    
+----
+
 ```cpp
 int main()
 {
@@ -205,11 +258,21 @@ int main()
     std::cout << sum << "\n";
 }
 ```
- For these reasons C++ supplies us with a convenient object ```std::lock_guard<std::mutex>``` which is basically
-a wrapper object around a ```std::mutex```. It follows the _resource acquisition is initialization_ [(RAII)](https://en.cppreference.com/w/cpp/language/raii) idiom.
-This means that the mutex is locked/unlocked when the object is created/destroyed. Using ```std::lock_guard``` is easy.
-Simply replace ```std::mutex m;``` with ```std::lock_guard<std::mutex> g(m);``` and remove ```m.unlock```. When the 
-```lock_guard``` object is created, it locks the mutex, and when it is destroyed it unlocks it automatically.
+
+----
+
+### lock guards
+
+1. For these reasons C++ supplies us with a convenient object ```std::lock_guard<std::mutex>``` which is basically
+a wrapper object around a ```std::mutex```. 
+1. It follows the _resource acquisition is initialization_ [(RAII)](https://en.cppreference.com/w/cpp/language/raii) idiom.
+1. This means that the mutex is locked/unlocked when the object is created/destroyed. 
+1. Using ```std::lock_guard``` is easy.
+1. Simply replace ```std::mutex m;``` with ```std::lock_guard<std::mutex> g(m);``` and remove ```m.unlock```. 
+1. When the  ```lock_guard``` object is created, it locks the mutex, and when it is destroyed it unlocks it automatically.
+
+---
+
 ```cpp
 int add(const std::vector<std::string>& values) {
     int val = 0;
@@ -222,14 +285,20 @@ int add(const std::vector<std::string>& values) {
 ```
 You can try the lock_guard version [here](https://godbolt.org/z/efoabb)
 
+---
+
 ### Deadlocks with lock_guards
 
-Even with the use of ```lock_guards``` deadlocks can still occur. Consider the classic __producer/consumer__ problem.
-A producer thread __adds_ data to a finite buffer and a consumer thread _removes_ the data from the buffer.
-To work properly the producer checks if the buffer is full before adding elements and the consumer checks if it is empty before removing elements.
-We keep track of the number of elements with a _size_ variable. Since both the buffer (array below) and the size (size below) are shared between the two threads we use a lock_guard for each. Since each thread needs to lock both guards
-to proceed, if each locks a guard a deadlock will occur. This happens in  the code below because the two threads access
-the guards in a __different__ order.
+1. Even with the use of ```lock_guards``` deadlocks can still occur. 
+1. Consider the classic __producer/consumer__ problem.
+1. A producer thread __adds_ data to a finite buffer and a consumer thread _removes_ the data from the buffer.
+1. To work properly the producer checks if the buffer is full before adding elements and the consumer checks if it is empty before removing elements.
+1. We keep track of the number of elements with a _size_ variable. 
+1. Since both the buffer (array below) and the size (size below) are shared between the two threads we use a lock_guard for each. 
+1. Since each thread needs to lock both guards to proceed, if each locks a guard a deadlock will occur. 
+1. This happens in  the code below because the two threads access the guards in a __different__ order.
+
+---
 
 Common code.
 ```cpp
