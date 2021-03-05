@@ -1,3 +1,11 @@
+---
+marp: true
+title: Marp CLI example
+description: Hosting Marp slide deck on the web
+theme: uncover
+paginate: true
+_paginate: false
+---
 
 # Multithreading in  C++. Part 1.
 Starting with the C++11 standard, C++ provides support for writing _portable_ multitheaded applications without relying on additional libraries and extensions. The basic functions and classes for thread support are declared in the ```<thread>``` header. Check the definition  [here](https://en.cppreference.com/w/cpp/thread/thread).
@@ -1083,5 +1091,6 @@ void vector_sin(int n,int terms, float* a, float* b)
 ### Combining both
 
 Since the multi-threaded version can accept any function we can passed the AVX512 function. In fact this
-combination gives us the biggest speedup. Without going into too much details, since the computation is split
-over multiple cores, cache invalidation is minimized.
+combination gives us the biggest speedup. Without going into too much details, since the computation is split over multiple cores, cache invalidation is minimized.
+
+
